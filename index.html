@@ -135,6 +135,52 @@ header{
 }
 #saved.show{opacity:1;}
 
+/* ─────────── export panel ─────────── */
+#exp{
+  position:absolute;top:calc(100% + 8px);right:12px;z-index:40;
+  width:288px;padding:14px;
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:12px;box-shadow:var(--shadow-2);
+}
+#exp[hidden]{display:none;}
+.ep-title{
+  font-family:"IBM Plex Mono","IBM Plex Sans JP",monospace;font-size:10.5px;
+  letter-spacing:.14em;color:var(--muted);margin-bottom:12px;
+}
+.ep-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:10px;}
+.ep-lbl{font-size:13px;color:var(--ink-2);}
+.seg{display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:2px;gap:2px;}
+.seg button{
+  padding:3px 11px;border-radius:5px;font-size:12px;color:var(--ink-2);
+  font-variant-numeric:tabular-nums;
+}
+.seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-1);}
+.ep-check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);margin-bottom:7px;cursor:pointer;}
+.ep-check input{accent-color:var(--accent);width:15px;height:15px;margin:0;}
+.ep-check.off{opacity:.4;pointer-events:none;}
+.ep-preview{
+  margin:11px 0 6px;height:112px;border-radius:8px;border:1px solid var(--line);
+  background:var(--surface-2);display:flex;align-items:center;justify-content:center;overflow:hidden;
+  background-image:
+    linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%),
+    linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%);
+  background-size:14px 14px;background-position:0 0, 7px 7px;
+}
+.ep-preview img{max-width:100%;max-height:100%;display:block;}
+.ep-size{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);
+  text-align:center;font-variant-numeric:tabular-nums;margin-bottom:11px;
+}
+.ep-actions{display:flex;gap:7px;}
+.ep-actions button{
+  flex:1;height:34px;border-radius:8px;font-size:13.5px;
+  border:1px solid var(--line);color:var(--ink-2);background:var(--surface);
+}
+.ep-actions button:hover{background:var(--surface-2);color:var(--ink);}
+.ep-actions button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:500;}
+.ep-actions button.primary:hover{filter:brightness(1.08);}
+.ep-note{margin:10px 0 0;font-size:11px;line-height:1.5;color:var(--muted);}
+
 /* ─────────── canvas ─────────── */
 #stage{
   position:relative;flex:1;overflow:hidden;touch-action:none;
@@ -310,7 +356,41 @@ header{
       <button class="tbtn" id="bRedo" title="やり直す (Ctrl+Shift+Z)" aria-label="やり直す"><svg viewBox="0 0 24 24"><path d="M20 9H9a5 5 0 0 0 0 10h6"/><path d="m16 5 4 4-4 4"/></svg></button>
       <div class="divider" style="margin:0 6px"></div>
       <button class="tbtn" id="bTheme" title="配色を切り替え" aria-label="配色を切り替え"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/></svg></button>
+      <button class="tbtn" id="bExport" title="画像として書き出す" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M12 3v11"/><path d="m8 10.5 4 4 4-4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span class="lbl">画像</span></button>
       <button class="tbtn" id="bNew" title="新しいマップ"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg><span class="lbl">新規</span></button>
+    </div>
+
+    <div id="exp" role="dialog" aria-label="画像として書き出す" hidden>
+      <div class="ep-title">画像として書き出す</div>
+
+      <div class="ep-row">
+        <span class="ep-lbl">形式</span>
+        <div class="seg" id="epFmt">
+          <button data-v="png" class="on">PNG</button>
+          <button data-v="jpeg">JPEG</button>
+        </div>
+      </div>
+
+      <div class="ep-row">
+        <span class="ep-lbl">倍率</span>
+        <div class="seg" id="epScale">
+          <button data-v="1">1×</button>
+          <button data-v="2" class="on">2×</button>
+          <button data-v="3">3×</button>
+        </div>
+      </div>
+
+      <label class="ep-check"><input type="checkbox" id="epBg" checked><span>背景を入れる</span></label>
+      <label class="ep-check"><input type="checkbox" id="epTitle" checked><span>マップ名を入れる</span></label>
+
+      <div class="ep-preview"><img id="epImg" alt="書き出しプレビュー"></div>
+      <div class="ep-size" id="epSize">—</div>
+
+      <div class="ep-actions">
+        <button id="epCopy">コピー</button>
+        <button id="epSave" class="primary">保存</button>
+      </div>
+      <p class="ep-note">保存されない場合は、上のプレビュー画像を右クリック →「名前を付けて画像を保存」。</p>
     </div>
   </header>
 
@@ -596,6 +676,7 @@ function render(){
   })(doc.root);
 
   applyView();
+  if(!$("exp").hidden) updateExport();
 }
 function count(n){ let c=0; (function w(x){ x.children.forEach(y=>{c++;w(y);}); })(n); return c; }
 
@@ -970,6 +1051,10 @@ window.addEventListener("keydown", e=>{
     if(e.key === "Enter"){ e.preventDefault(); $("title").blur(); }
     return;
   }
+  if(!$("exp").hidden){
+    if(e.key === "Escape"){ e.preventDefault(); closeExport(); }
+    return;
+  }
   if(editing) return;
   const meta = e.ctrlKey || e.metaKey;
 
@@ -1006,6 +1091,198 @@ window.addEventListener("keydown", e=>{
 });
 window.addEventListener("keyup", e=>{ if(e.code === "Space"){ space = false; stage.style.cursor = ""; } });
 
+/* ══════════ image export ══════════ */
+const cssVar = k => getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+
+function toRgb(c){
+  c = c.trim();
+  if(c[0] === "#"){
+    let h = c.slice(1);
+    if(h.length === 3) h = h.split("").map(x=>x+x).join("");
+    return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+  }
+  const m = c.match(/-?\d+(\.\d+)?/g) || [0,0,0];
+  return [+m[0], +m[1], +m[2]];
+}
+function mix(a, b, t){
+  const A = toRgb(a), B = toRgb(b);
+  return "rgb("+A.map((v,i)=>Math.round(v*t + B[i]*(1-t))).join(",")+")";
+}
+
+/* DOM が実際に折り返した行をそのまま取り出す（書き出しでも見た目を一致させる） */
+function wrappedLines(span){
+  const tn = span.firstChild;
+  if(!tn || tn.nodeType !== 3) return [span.textContent || ""];
+  const s = tn.textContent;
+  if(!s) return [""];
+  const r = document.createRange();
+  const lines = [];
+  let cur = "", top = null;
+  for(let i=0; i<s.length; i++){
+    if(s[i] === "\n"){ lines.push(cur); cur = ""; top = null; continue; }
+    r.setStart(tn, i); r.setEnd(tn, i+1);
+    const rects = r.getClientRects();
+    const t = rects.length ? Math.round(rects[rects.length-1].top * 2)/2 : top;
+    if(top === null) top = t;
+    else if(t !== null && Math.abs(t - top) > 1.5){ lines.push(cur); cur = ""; top = t; }
+    cur += s[i];
+  }
+  lines.push(cur);
+  return lines;
+}
+
+function roundRect(g, x, y, w, h, r){
+  if(g.roundRect){ g.beginPath(); g.roundRect(x, y, w, h, r); return; }
+  g.beginPath();
+  g.moveTo(x+r, y);
+  g.arcTo(x+w, y, x+w, y+h, r); g.arcTo(x+w, y+h, x, y+h, r);
+  g.arcTo(x, y+h, x, y, r);     g.arcTo(x, y, x+w, y, r);
+  g.closePath();
+}
+
+const EXP_STYLE = {
+  0: {padX:20, padY:11, r:12, size:17, weight:600},
+  1: {padX:15, padY:8,  r:10, size:15, weight:500},
+  d: {padX:13, padY:7,  r:9,  size:14, weight:400}
+};
+
+function renderCanvas(opts){
+  const bb = bbox();
+  if(!isFinite(bb.w) || bb.w <= 0) return null;
+
+  const scale   = opts.scale;
+  const pad     = 44;
+  const titleH  = opts.withTitle && doc.title ? 48 : 0;
+  const W = bb.w + pad*2, H = bb.h + pad*2 + titleH;
+
+  const cv = document.createElement("canvas");
+  cv.width  = Math.round(W * scale);
+  cv.height = Math.round(H * scale);
+  const g = cv.getContext("2d");
+  g.scale(scale, scale);
+
+  const C = {
+    ground: cssVar("--ground"), surface: cssVar("--surface"), line: cssVar("--line"),
+    lineStrong: cssVar("--line-strong"), ink: cssVar("--ink"), ink2: cssVar("--ink-2"),
+    muted: cssVar("--muted"), accent: cssVar("--accent"), accentInk: cssVar("--accent-ink"),
+    br: BR.map(v => cssVar(v))
+  };
+  const family = getComputedStyle(document.body).fontFamily;
+
+  if(opts.withBg){ g.fillStyle = C.ground; g.fillRect(0, 0, W, H); }
+
+  if(titleH){
+    g.fillStyle = C.ink;
+    g.font = '500 20px ' + family;
+    g.textBaseline = "alphabetic";
+    g.fillText(doc.title, pad, pad + 20);
+  }
+
+  g.save();
+  g.translate(pad - bb.x, pad + titleH - bb.y);
+
+  /* connectors */
+  (function draw(n){
+    if(n.collapsed) return;
+    n.children.forEach(c=>{
+      const side = c._side;
+      const px = n.cx + side*(n._w/2), py = n.cy;
+      const qx = c.cx - side*(c._w/2), qy = c.cy;
+      const mid = (px + qx)/2;
+      const d = depthOf(c.id);
+      g.strokeStyle = C.br[branchOf(c.id) || 0];
+      g.lineWidth = d===1 ? 2.6 : d===2 ? 1.9 : 1.4;
+      g.lineCap = "round";
+      g.globalAlpha = d===1 ? 0.95 : 0.8;
+      g.beginPath();
+      g.moveTo(px, py);
+      g.bezierCurveTo(mid, py, mid, qy, qx, qy);
+      g.stroke();
+      draw(c);
+    });
+  })(doc.root);
+  g.globalAlpha = 1;
+
+  /* nodes */
+  (function draw(n){
+    const el = nodeEls.get(n.id);
+    if(!el) return;
+    const d  = depthOf(n.id);
+    const st = EXP_STYLE[d] || EXP_STYLE.d;
+    const bc = d===0 ? C.accent : C.br[branchOf(n.id) || 0];
+    const x = n.cx - n._w/2, y = n.cy - n._sh/2;
+
+    roundRect(g, x, y, n._w, n._sh, st.r);
+    g.fillStyle   = d===0 ? C.accent : C.surface;
+    g.fill();
+    g.strokeStyle = d===0 ? C.accent : mix(bc, C.line, 0.4);
+    g.lineWidth   = 1;
+    g.stroke();
+
+    g.fillStyle = d===0 ? C.accentInk : C.ink;
+    g.font = st.weight + " " + st.size + "px " + family;
+    g.textBaseline = "middle";
+    g.textAlign = "left";
+    const lines = wrappedLines(el.querySelector(".txt"));
+    const lh = st.size * 1.5;
+    lines.forEach((ln, i)=>{ g.fillText(ln, x + st.padX, y + st.padY + lh*(i + 0.5)); });
+
+    /* 折りたたみ中の枝は件数のバッジで示す */
+    if(n.collapsed && n.children.length){
+      const cxx = (n._side >= 0) ? x + n._w : x;
+      const cyy = n.cy;
+      g.beginPath(); g.arc(cxx, cyy, 9.5, 0, Math.PI*2);
+      g.fillStyle = C.surface; g.fill();
+      g.strokeStyle = C.lineStrong; g.lineWidth = 1; g.stroke();
+      g.fillStyle = C.ink2;
+      g.font = '400 9.5px "IBM Plex Mono", monospace';
+      g.textAlign = "center";
+      g.fillText(String(count(n)), cxx, cyy);
+      g.textAlign = "left";
+    }
+    if(!n.collapsed) n.children.forEach(draw);
+  })(doc.root);
+
+  g.restore();
+  return cv;
+}
+
+const EXP = { fmt:"png", scale:2, bg:true, title:true, blob:null, url:null };
+
+function updateExport(){
+  const cv = renderCanvas({ scale:EXP.scale, withBg:EXP.bg || EXP.fmt === "jpeg", withTitle:EXP.title });
+  if(!cv){ $("epSize").textContent = "—"; return; }
+  $("epSize").textContent = cv.width + " × " + cv.height + " px";
+  const type = EXP.fmt === "jpeg" ? "image/jpeg" : "image/png";
+  cv.toBlob(blob=>{
+    if(!blob) return;
+    if(EXP.url) URL.revokeObjectURL(EXP.url);
+    EXP.blob = blob;
+    EXP.url  = URL.createObjectURL(blob);
+    $("epImg").src = EXP.url;
+  }, type, 0.92);
+}
+
+function expFileName(){
+  const d = new Date(), p = v => String(v).padStart(2,"0");
+  const stamp = d.getFullYear() + p(d.getMonth()+1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes());
+  const base = (doc.title || "taguri").replace(/[\\/:*?"<>|]/g, "_").slice(0, 48).trim() || "taguri";
+  return base + "-" + stamp + "." + (EXP.fmt === "jpeg" ? "jpg" : "png");
+}
+
+function openExport(){
+  const p = $("exp");
+  p.hidden = false;
+  $("bExport").setAttribute("aria-expanded", "true");
+  $("bExport").classList.add("on");
+  updateExport();
+}
+function closeExport(){
+  $("exp").hidden = true;
+  $("bExport").setAttribute("aria-expanded", "false");
+  $("bExport").classList.remove("on");
+}
+
 /* ══════════ chrome ══════════ */
 function toast(msg){
   const t = $("toast");
@@ -1036,6 +1313,80 @@ $("bNew").onclick = ()=>{
   sel = "root";
   reindex(); render(); fit(); save();
 };
+
+/* ── 画像書き出しパネル ── */
+$("bExport").onclick = e =>{ e.stopPropagation(); $("exp").hidden ? openExport() : closeExport(); };
+
+function segHandler(id, key, cast){
+  $(id).addEventListener("click", e=>{
+    const b = e.target.closest("button"); if(!b) return;
+    [...$(id).children].forEach(x=>x.classList.toggle("on", x === b));
+    EXP[key] = cast ? cast(b.dataset.v) : b.dataset.v;
+    if(key === "fmt"){
+      const off = EXP.fmt === "jpeg";
+      $("epBg").closest(".ep-check").classList.toggle("off", off);
+      $("epBg").checked = off ? true : EXP.bg;
+    }
+    updateExport();
+  });
+}
+segHandler("epFmt", "fmt");
+segHandler("epScale", "scale", Number);
+$("epBg").onchange    = ()=>{ EXP.bg    = $("epBg").checked;    updateExport(); };
+$("epTitle").onchange = ()=>{ EXP.title = $("epTitle").checked; updateExport(); };
+
+/* claude.ai の Artifact 上ではダウンロードが仲介されるので、あればそちらを使う。
+   GitHub Pages やローカルファイルでは通常の <a download> にフォールバックする。 */
+let dlNs;
+async function getDownloads(){
+  if(dlNs !== undefined) return dlNs;
+  try{
+    dlNs = (window.claude && typeof window.claude.use === "function")
+      ? await window.claude.use("downloads")
+      : null;
+  }catch(err){ dlNs = null; }
+  return dlNs;
+}
+
+$("epSave").onclick = async ()=>{
+  if(!EXP.blob || !EXP.url) return toast("書き出しを準備中です");
+  const name = expFileName();
+
+  const ns = await getDownloads();
+  if(ns){
+    try{
+      await ns.save({ filename:name, data:EXP.blob });
+      toast(name + " を保存しました");
+    }catch(err){
+      const c = err && err.code;
+      if(c === "declined") return;
+      if(c === "too_large") toast("画像が大きすぎます。倍率を下げてください");
+      else if(c === "rate_limited") toast("少し待ってからもう一度お試しください");
+      else toast("保存できませんでした。プレビュー画像を右クリックして保存してください");
+    }
+    return;
+  }
+
+  const a = document.createElement("a");
+  a.href = EXP.url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast(name + " を保存しました");
+};
+
+$("epCopy").onclick = async ()=>{
+  if(!EXP.blob) return;
+  if(EXP.fmt === "jpeg") return toast("コピーは PNG のみ対応しています");
+  try{
+    await navigator.clipboard.write([ new ClipboardItem({ "image/png": EXP.blob }) ]);
+    toast("画像をコピーしました");
+  }catch(err){
+    toast("コピーできませんでした。画像を右クリックしてコピーしてください");
+  }
+};
+
+document.addEventListener("pointerdown", e=>{
+  if(!$("exp").hidden && !e.target.closest("#exp") && !e.target.closest("#bExport")) closeExport();
+}, true);
 
 const hh = $("help");
 $("hToggle").onclick = ()=>{
@@ -1082,7 +1433,6 @@ fit();
 </script>
 
 <script>
-/* オフライン起動とインストール用。file:// で開いたときは何もしない */
 if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
   window.addEventListener("load", function () {
     navigator.serviceWorker.register("./sw.js").catch(function () {});
