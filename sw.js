@@ -1,6 +1,6 @@
 /* Taguri — オフライン用サービスワーカー
    更新したら CACHE の v1 を v2, v3 … と上げてください */
-const CACHE  = "taguri-v1";
+const CACHE  = "taguri-v3";
 const ASSETS = [
   "./", "./index.html", "./manifest.webmanifest",
   "./icon.svg", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png"

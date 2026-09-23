@@ -135,6 +135,50 @@ header{
 }
 #saved.show{opacity:1;}
 
+/* ─────────── sheet tabs ─────────── */
+#tabs{
+  display:flex;align-items:center;gap:4px;flex:none;height:38px;
+  padding:0 8px;background:var(--surface);
+  border-bottom:1px solid var(--line);position:relative;z-index:25;
+}
+#tabstrip{
+  display:flex;align-items:center;gap:3px;flex:1;min-width:0;
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;
+}
+#tabstrip::-webkit-scrollbar{height:0;}
+.tab{
+  display:flex;align-items:center;gap:5px;flex:none;
+  height:28px;padding:0 5px 0 11px;border-radius:7px;
+  font-size:13px;color:var(--ink-2);user-select:none;cursor:default;
+  border:1px solid transparent;max-width:220px;
+  transition:background .12s,color .12s;
+}
+.tab:hover{background:var(--surface-2);color:var(--ink);}
+.tab.on{
+  background:var(--accent-soft);color:var(--accent);font-weight:500;
+  border-color:color-mix(in oklab, var(--accent) 22%, transparent);
+}
+.tab .tname{
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;outline:none;min-width:1.5em;
+}
+.tab .tname[contenteditable]{
+  text-overflow:clip;cursor:text;background:var(--surface);color:var(--ink);
+  border-radius:4px;padding:0 4px;box-shadow:0 0 0 2px var(--accent);
+}
+.tab .tclose{
+  width:19px;height:19px;border-radius:5px;flex:none;opacity:0;
+  display:flex;align-items:center;justify-content:center;color:var(--muted);
+}
+.tab:hover .tclose,.tab.on .tclose{opacity:.7;}
+.tab .tclose:hover{background:var(--surface);color:var(--danger);opacity:1;}
+.tab .tclose svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;}
+#tabAdd{
+  width:30px;height:28px;flex:none;border-radius:7px;color:var(--ink-2);
+  display:flex;align-items:center;justify-content:center;
+}
+#tabAdd:hover{background:var(--surface-2);color:var(--ink);}
+#tabAdd svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;}
+
 /* ─────────── export panel ─────────── */
 #exp{
   position:absolute;top:calc(100% + 8px);right:12px;z-index:40;
@@ -147,6 +191,8 @@ header{
   font-family:"IBM Plex Mono","IBM Plex Sans JP",monospace;font-size:10.5px;
   letter-spacing:.14em;color:var(--muted);margin-bottom:12px;
 }
+.ep-tabs{width:100%;margin-bottom:12px;}
+.ep-tabs button{flex:1;padding:5px 0;font-size:12.5px;}
 .ep-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:10px;}
 .ep-lbl{font-size:13px;color:var(--ink-2);}
 .seg{display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:2px;gap:2px;}
@@ -361,8 +407,14 @@ header{
     </div>
 
     <div id="exp" role="dialog" aria-label="画像として書き出す" hidden>
-      <div class="ep-title">画像として書き出す</div>
+      <div class="ep-title">書き出し・読み込み</div>
 
+      <div class="seg ep-tabs" id="epMode">
+        <button data-v="img" class="on">画像</button>
+        <button data-v="json">JSON</button>
+      </div>
+
+      <div id="epImgPane">
       <div class="ep-row">
         <span class="ep-lbl">形式</span>
         <div class="seg" id="epFmt">
@@ -391,8 +443,30 @@ header{
         <button id="epSave" class="primary">保存</button>
       </div>
       <p class="ep-note">保存されない場合は、上のプレビュー画像を右クリック →「名前を付けて画像を保存」。</p>
+      </div>
+
+      <div id="epJsonPane" hidden>
+        <div class="ep-row">
+          <span class="ep-lbl">範囲</span>
+          <div class="seg" id="epScope">
+            <button data-v="sheet" class="on">このシート</button>
+            <button data-v="all">すべて</button>
+          </div>
+        </div>
+        <p class="ep-note">JSON で書き出しておけば、別の PC やブラウザにそのまま移せます。読み込んだシートは既存のシートの後ろに追加されます（上書きはしません）。</p>
+        <div class="ep-actions">
+          <button id="epImport">読み込む</button>
+          <button id="epJsonSave" class="primary">書き出す</button>
+        </div>
+        <input type="file" id="epFile" accept="application/json,.json" hidden>
+      </div>
     </div>
   </header>
+
+  <div id="tabs">
+    <div id="tabstrip" role="tablist" aria-label="シート"></div>
+    <button id="tabAdd" title="シートを追加" aria-label="シートを追加"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+  </div>
 
   <div id="stage">
     <div id="world">
@@ -431,14 +505,17 @@ header{
 (function(){
 
 /* ══════════ state ══════════ */
-const KEY = "taguri.map.v1";
-const OLD_KEY = "kozue.map.v1";
+const KEY  = "taguri.book.v2";     /* 複数シート */
+const KEY1 = "taguri.map.v1";      /* 旧・単一マップ */
+const KEY0 = "kozue.map.v1";       /* 旧名 */
 const BR  = ["--b1","--b2","--b3","--b4","--b5","--b6"];
 const HGAP = 58, VGAP = 15;
+const MAX_NODES = 6000, MAX_SHEETS = 60;
 
-let doc, sel = "root", editing = null, dirty = false;
+let book;                      /* { activeId, sheets:[…] } */
+let doc;                       /* 選択中のシート { id, title, root, view } */
+let sel = "root", editing = null;
 let view = {x:0, y:0, s:1};
-const undoStack = [], redoStack = [];
 
 const $ = id => document.getElementById(id);
 const stage = $("stage"), world = $("world"), wires = $("wires");
@@ -447,45 +524,96 @@ let index = new Map();
 
 const uid = () => Math.random().toString(36).slice(2,9);
 
-function seed(){
+function seedRoot(){
   return {
-    title: "新しいマップ",
-    root: {
-      id:"root", text:"中心テーマ", collapsed:false,
-      children:[
-        {id:uid(), text:"アイデア", collapsed:false, children:[
-          {id:uid(), text:"思いついたことを書く", collapsed:false, children:[]},
-          {id:uid(), text:"Tab で枝を伸ばす", collapsed:false, children:[]}
-        ]},
-        {id:uid(), text:"やること", collapsed:false, children:[
-          {id:uid(), text:"Enter で並べる", collapsed:false, children:[]}
-        ]},
-        {id:uid(), text:"気づき", collapsed:false, children:[]},
-        {id:uid(), text:"あとで調べる", collapsed:false, children:[]}
-      ]
-    }
+    id:"root", text:"中心テーマ", collapsed:false,
+    children:[
+      {id:uid(), text:"アイデア", collapsed:false, children:[
+        {id:uid(), text:"思いついたことを書く", collapsed:false, children:[]},
+        {id:uid(), text:"Tab で枝を伸ばす", collapsed:false, children:[]}
+      ]},
+      {id:uid(), text:"やること", collapsed:false, children:[
+        {id:uid(), text:"Enter で並べる", collapsed:false, children:[]}
+      ]},
+      {id:uid(), text:"気づき", collapsed:false, children:[]},
+      {id:uid(), text:"あとで調べる", collapsed:false, children:[]}
+    ]
+  };
+}
+function seedSheet(title){ return { id:uid(), title:title || "シート 1", root:seedRoot(), view:null }; }
+function makeBook(){ const sh = seedSheet("シート 1"); return { activeId:sh.id, sheets:[sh] }; }
+
+/* ══════════ 読み込んだデータの検証 ══════════ */
+function sanitizeNode(n, depth, counter, isRoot){
+  if(!n || typeof n !== "object") return null;
+  if(depth > 40 || counter.n >= MAX_NODES) return null;
+  counter.n++;
+  const out = {
+    id: isRoot ? "root" : uid(),
+    text: typeof n.text === "string" ? n.text.slice(0, 2000) : "",
+    collapsed: !!n.collapsed,
+    children: []
+  };
+  if(!out.text.trim()) out.text = isRoot ? "中心テーマ" : "トピック";
+  const kids = Array.isArray(n.children) ? n.children : [];
+  for(const k of kids){
+    const c = sanitizeNode(k, depth + 1, counter, false);
+    if(c) out.children.push(c);
+  }
+  return out;
+}
+function normalizeSheet(s){
+  if(!s || typeof s !== "object") return null;
+  const root = sanitizeNode(s.root, 0, {n:0}, true);
+  if(!root) return null;
+  const v = s.view && typeof s.view === "object" ? s.view : null;
+  const okView = v && isFinite(+v.x) && isFinite(+v.y) && isFinite(+v.s) && +v.s > 0;
+  return {
+    id: (typeof s.id === "string" && s.id) ? s.id : uid(),
+    title: (typeof s.title === "string" && s.title.trim()) ? s.title.trim().slice(0, 80) : "シート",
+    root,
+    view: okView ? {x:+v.x, y:+v.y, s:+v.s} : null
   };
 }
 
 /* ══════════ persistence ══════════ */
 function load(){
   try{
-    const raw = localStorage.getItem(KEY) || localStorage.getItem(OLD_KEY);
+    const raw = localStorage.getItem(KEY);
     if(raw){
-      const d = JSON.parse(raw);
-      if(d && d.root && d.root.id) return d;
+      const b = JSON.parse(raw);
+      if(b && Array.isArray(b.sheets)){
+        const sheets = b.sheets.map(normalizeSheet).filter(Boolean).slice(0, MAX_SHEETS);
+        if(sheets.length){
+          const ids = new Set();
+          sheets.forEach(sh=>{ while(ids.has(sh.id)) sh.id = uid(); ids.add(sh.id); });
+          const activeId = sheets.some(sh=>sh.id === b.activeId) ? b.activeId : sheets[0].id;
+          return { activeId, sheets };
+        }
+      }
     }
   }catch(e){}
-  return seed();
+  /* 旧バージョン（単一マップ）からの引き継ぎ */
+  try{
+    const raw = localStorage.getItem(KEY1) || localStorage.getItem(KEY0);
+    if(raw){
+      const d = JSON.parse(raw);
+      const sh = normalizeSheet({ title: d && d.title, root: d && d.root });
+      if(sh) return { activeId:sh.id, sheets:[sh] };
+    }
+  }catch(e){}
+  return makeBook();
 }
+
 let saveTimer = null;
 function save(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(()=>{
     try{
-      localStorage.setItem(KEY, JSON.stringify({title:doc.title, root:doc.root}));
+      doc.view = {x:view.x, y:view.y, s:view.s};
+      localStorage.setItem(KEY, JSON.stringify(book, (k, v)=> k.charAt(0) === "_" ? undefined : v));
       flashSaved();
-    }catch(e){ toast("保存できませんでした（ブラウザの設定を確認してください）"); }
+    }catch(e){ toast("保存できませんでした（ブラウザの保存容量を確認してください）"); }
   }, 350);
 }
 let savedTimer = null;
@@ -522,35 +650,163 @@ function detach(id){
   return i<0 ? null : p.children.splice(i,1)[0];
 }
 
-/* ══════════ history ══════════ */
+/* ══════════ history（シートごと） ══════════ */
 function snapshot(){ return JSON.stringify({title:doc.title, root:doc.root}); }
+function hist(){
+  if(!doc._undo) doc._undo = [];
+  if(!doc._redo) doc._redo = [];
+  return doc;
+}
 function commit(){
-  undoStack.push(snapshot());
-  if(undoStack.length>80) undoStack.shift();
-  redoStack.length = 0;
+  const d = hist();
+  d._undo.push(snapshot());
+  if(d._undo.length > 80) d._undo.shift();
+  d._redo.length = 0;
   syncHistoryBtns();
 }
 function applyState(json){
   const d = JSON.parse(json);
   doc.title = d.title; doc.root = d.root;
-  $("title").textContent = doc.title;
+  syncTitleUI(); renderTabs();
   reindex(); render(); save();
 }
 function undo(){
-  if(!undoStack.length) return;
-  redoStack.push(snapshot());
-  applyState(undoStack.pop());
+  const d = hist();
+  if(!d._undo.length) return;
+  d._redo.push(snapshot());
+  applyState(d._undo.pop());
   syncHistoryBtns();
 }
 function redo(){
-  if(!redoStack.length) return;
-  undoStack.push(snapshot());
-  applyState(redoStack.pop());
+  const d = hist();
+  if(!d._redo.length) return;
+  d._undo.push(snapshot());
+  applyState(d._redo.pop());
   syncHistoryBtns();
 }
 function syncHistoryBtns(){
-  $("bUndo").disabled = !undoStack.length;
-  $("bRedo").disabled = !redoStack.length;
+  const d = hist();
+  $("bUndo").disabled = !d._undo.length;
+  $("bRedo").disabled = !d._redo.length;
+}
+function syncTitleUI(){
+  $("title").textContent = doc.title;
+  document.title = doc.title + " · Taguri";
+}
+
+/* ══════════ シートの管理 ══════════ */
+function renderTabs(){
+  const strip = $("tabstrip");
+  strip.innerHTML = "";
+  book.sheets.forEach(sh=>{
+    const el = document.createElement("div");
+    el.className = "tab" + (sh.id === book.activeId ? " on" : "");
+    el.dataset.id = sh.id;
+    el.setAttribute("role", "tab");
+    el.setAttribute("aria-selected", sh.id === book.activeId ? "true" : "false");
+    el.title = sh.title + "（ダブルクリックで名前を変更）";
+    const name = document.createElement("span");
+    name.className = "tname";
+    name.textContent = sh.title;
+    el.appendChild(name);
+    const x = document.createElement("button");
+    x.className = "tclose";
+    x.title = "このシートを削除";
+    x.setAttribute("aria-label", sh.title + " を削除");
+    x.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    el.appendChild(x);
+    strip.appendChild(el);
+  });
+  const on = strip.querySelector(".tab.on");
+  if(on && on.scrollIntoView) on.scrollIntoView({block:"nearest", inline:"nearest"});
+}
+
+function loadSheet(sh){
+  doc = sh;
+  book.activeId = sh.id;
+  sel = "root";
+  nodeEls.forEach(el=>el.remove());
+  nodeEls.clear();
+  reindex();
+  render();
+  renderTabs();
+  syncTitleUI();
+  syncHistoryBtns();
+  if(doc.view){ view = {x:doc.view.x, y:doc.view.y, s:doc.view.s}; applyView(); }
+  else fit();
+}
+function switchSheet(id){
+  const next = book.sheets.find(sh=>sh.id === id);
+  if(!next || next === doc) return;
+  if(editing) stopEdit(false);
+  doc.view = {x:view.x, y:view.y, s:view.s};
+  loadSheet(next);
+  save();
+}
+function uniqueTitle(t){
+  const names = new Set(book.sheets.map(sh=>sh.title));
+  if(!names.has(t)) return t;
+  let i = 2;
+  while(names.has(t + " (" + i + ")")) i++;
+  return t + " (" + i + ")";
+}
+function addSheet(){
+  if(book.sheets.length >= MAX_SHEETS) return toast("シートはこれ以上追加できません");
+  if(editing) stopEdit(false);
+  doc.view = {x:view.x, y:view.y, s:view.s};
+  const sh = seedSheet(uniqueTitle("シート " + (book.sheets.length + 1)));
+  book.sheets.push(sh);
+  loadSheet(sh);
+  save();
+}
+function removeSheet(id){
+  if(book.sheets.length <= 1) return toast("最後のシートは削除できません");
+  const i = book.sheets.findIndex(sh=>sh.id === id);
+  if(i < 0) return;
+  const sh = book.sheets[i];
+  if(!confirm("シート「" + sh.title + "」を削除しますか？\nこの操作は元に戻せません。")) return;
+  if(editing) stopEdit(false);
+  book.sheets.splice(i, 1);
+  if(doc === sh) loadSheet(book.sheets[Math.min(i, book.sheets.length - 1)]);
+  else renderTabs();
+  save();
+}
+function renameSheet(sh, name){
+  const v = String(name || "").replace(/\s+/g, " ").trim().slice(0, 80) || "シート";
+  if(v === sh.title) return;
+  sh.title = v;
+  renderTabs();
+  if(sh === doc) syncTitleUI();
+  save();
+}
+
+let renaming = null;
+function startTabRename(tabEl){
+  const sh = book.sheets.find(x=>x.id === tabEl.dataset.id);
+  if(!sh || renaming) return;
+  const name = tabEl.querySelector(".tname");
+  renaming = sh;
+  try{ name.contentEditable = "plaintext-only"; }catch(e){ name.contentEditable = "true"; }
+  name.focus();
+  const r = document.createRange(); r.selectNodeContents(name);
+  const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(r);
+  const finish = (keep)=>{
+    if(!renaming) return;
+    const target = renaming; renaming = null;
+    name.removeEventListener("blur", onBlur);
+    name.removeEventListener("keydown", onKey);
+    name.contentEditable = "false";
+    if(keep) renameSheet(target, name.textContent);
+    renderTabs();
+  };
+  const onBlur = ()=> finish(true);
+  const onKey = ev=>{
+    ev.stopPropagation();
+    if(ev.key === "Enter"){ ev.preventDefault(); finish(true); }
+    else if(ev.key === "Escape"){ ev.preventDefault(); finish(false); }
+  };
+  name.addEventListener("blur", onBlur);
+  name.addEventListener("keydown", onKey);
 }
 
 /* ══════════ node elements ══════════ */
@@ -676,7 +932,7 @@ function render(){
   })(doc.root);
 
   applyView();
-  if(!$("exp").hidden) updateExport();
+  if(imgPaneOpen()) updateExport();
 }
 function count(n){ let c=0; (function w(x){ x.children.forEach(y=>{c++;w(y);}); })(n); return c; }
 
@@ -863,8 +1119,13 @@ let pan = null, drag = null;
 const pointers = new Map();
 let pinch = null;
 
+/* 左下のズーム操作などの UI 要素は、背景のパン処理より前に抜ける。
+   ここで pointer capture を取ってしまうと click がボタンに届かなくなる。 */
+const UI_CHROME = ".dock, #help, #exp, #toast";
+
 stage.addEventListener("pointerdown", e=>{
   if(e.button === 2) return;
+  if(e.target.closest(UI_CHROME)) return;
   pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   if(pointers.size === 2){
     const p = [...pointers.values()];
@@ -1001,6 +1262,7 @@ stage.addEventListener("click", e=>{
 });
 
 stage.addEventListener("wheel", e=>{
+  if(e.target.closest(UI_CHROME)) return;
   e.preventDefault();
   if(e.ctrlKey || e.metaKey){
     zoomAt(Math.pow(0.99, e.deltaY), e.clientX, e.clientY);
@@ -1247,7 +1509,7 @@ function renderCanvas(opts){
   return cv;
 }
 
-const EXP = { fmt:"png", scale:2, bg:true, title:true, blob:null, url:null };
+const EXP = { fmt:"png", scale:2, bg:true, title:true, scope:"sheet", blob:null, url:null };
 
 function updateExport(){
   const cv = renderCanvas({ scale:EXP.scale, withBg:EXP.bg || EXP.fmt === "jpeg", withTitle:EXP.title });
@@ -1270,12 +1532,12 @@ function expFileName(){
   return base + "-" + stamp + "." + (EXP.fmt === "jpeg" ? "jpg" : "png");
 }
 
+function imgPaneOpen(){ return !$("exp").hidden && !$("epImgPane").hidden; }
 function openExport(){
-  const p = $("exp");
-  p.hidden = false;
+  $("exp").hidden = false;
   $("bExport").setAttribute("aria-expanded", "true");
   $("bExport").classList.add("on");
-  updateExport();
+  if(imgPaneOpen()) updateExport();
 }
 function closeExport(){
   $("exp").hidden = true;
@@ -1291,10 +1553,8 @@ function toast(msg){
 }
 
 $("title").addEventListener("blur", ()=>{
-  const v = $("title").textContent.trim() || "無題のマップ";
-  if(v !== doc.title){ commit(); doc.title = v; save(); }
-  $("title").textContent = v;
-  document.title = v + " · Taguri";
+  renameSheet(doc, $("title").textContent);
+  syncTitleUI();
 });
 
 $("bUndo").onclick = undo;
@@ -1304,15 +1564,18 @@ $("bOut").onclick = ()=>{ const r = stage.getBoundingClientRect(); zoomAt(1/1.2,
 $("zval").onclick = ()=>{ const r = stage.getBoundingClientRect(); zoomAt(1/view.s, r.left+r.width/2, r.top+r.height/2); };
 $("bFit").onclick = fit;
 $("bCenter").onclick = ()=>centerOn(sel);
-$("bNew").onclick = ()=>{
-  if(!confirm("今のマップを消して、新しいマップを作りますか？")) return;
-  commit();
-  const s = seed();
-  doc.title = s.title; doc.root = s.root;
-  $("title").textContent = doc.title;
-  sel = "root";
-  reindex(); render(); fit(); save();
-};
+$("bNew").onclick = addSheet;
+$("tabAdd").onclick = addSheet;
+
+$("tabstrip").addEventListener("click", e=>{
+  const t = e.target.closest(".tab"); if(!t) return;
+  if(e.target.closest(".tclose")){ removeSheet(t.dataset.id); return; }
+  if(!t.querySelector(".tname").isContentEditable) switchSheet(t.dataset.id);
+});
+$("tabstrip").addEventListener("dblclick", e=>{
+  const t = e.target.closest(".tab");
+  if(t && !e.target.closest(".tclose")) startTabRename(t);
+});
 
 /* ── 画像書き出しパネル ── */
 $("bExport").onclick = e =>{ e.stopPropagation(); $("exp").hidden ? openExport() : closeExport(); };
@@ -1322,6 +1585,7 @@ function segHandler(id, key, cast){
     const b = e.target.closest("button"); if(!b) return;
     [...$(id).children].forEach(x=>x.classList.toggle("on", x === b));
     EXP[key] = cast ? cast(b.dataset.v) : b.dataset.v;
+    if(key === "scope") return;
     if(key === "fmt"){
       const off = EXP.fmt === "jpeg";
       $("epBg").closest(".ep-check").classList.toggle("off", off);
@@ -1332,6 +1596,36 @@ function segHandler(id, key, cast){
 }
 segHandler("epFmt", "fmt");
 segHandler("epScale", "scale", Number);
+segHandler("epScope", "scope");
+
+$("epMode").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  [...$("epMode").children].forEach(x=>x.classList.toggle("on", x === b));
+  const json = b.dataset.v === "json";
+  $("epImgPane").hidden = json;
+  $("epJsonPane").hidden = !json;
+  if(!json) updateExport();
+});
+
+$("epJsonSave").onclick = exportJson;
+$("epImport").onclick  = ()=> $("epFile").click();
+$("epFile").onchange   = e=>{
+  const f = e.target.files && e.target.files[0];
+  e.target.value = "";
+  importFile(f);
+};
+
+/* JSON ファイルを画面にドロップしても読み込める */
+["dragenter","dragover"].forEach(t=> stage.addEventListener(t, e=>{
+  if(e.dataTransfer && [...e.dataTransfer.types].includes("Files")) e.preventDefault();
+}));
+stage.addEventListener("drop", e=>{
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if(!f) return;
+  e.preventDefault();
+  if(/\.json$/i.test(f.name) || f.type === "application/json") importFile(f);
+  else toast("JSON ファイルをドロップしてください");
+});
 $("epBg").onchange    = ()=>{ EXP.bg    = $("epBg").checked;    updateExport(); };
 $("epTitle").onchange = ()=>{ EXP.title = $("epTitle").checked; updateExport(); };
 
@@ -1348,30 +1642,85 @@ async function getDownloads(){
   return dlNs;
 }
 
-$("epSave").onclick = async ()=>{
-  if(!EXP.blob || !EXP.url) return toast("書き出しを準備中です");
-  const name = expFileName();
-
+async function saveFile(name, data, mime, tooLargeMsg){
   const ns = await getDownloads();
   if(ns){
     try{
-      await ns.save({ filename:name, data:EXP.blob });
+      await ns.save({ filename:name, data });
       toast(name + " を保存しました");
     }catch(err){
       const c = err && err.code;
       if(c === "declined") return;
-      if(c === "too_large") toast("画像が大きすぎます。倍率を下げてください");
+      if(c === "too_large") toast(tooLargeMsg || "データが大きすぎます");
       else if(c === "rate_limited") toast("少し待ってからもう一度お試しください");
-      else toast("保存できませんでした。プレビュー画像を右クリックして保存してください");
+      else toast("保存できませんでした");
     }
     return;
   }
-
+  const blob = (data instanceof Blob) ? data : new Blob([data], {type:mime || "application/octet-stream"});
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = EXP.url; a.download = name;
+  a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
   toast(name + " を保存しました");
+}
+
+$("epSave").onclick = ()=>{
+  if(!EXP.blob) return toast("書き出しを準備中です");
+  saveFile(expFileName(), EXP.blob, null, "画像が大きすぎます。倍率を下げてください");
 };
+
+/* ── JSON の書き出し・読み込み ── */
+function stamp(){
+  const d = new Date(), q = v => String(v).padStart(2, "0");
+  return d.getFullYear() + q(d.getMonth()+1) + q(d.getDate()) + "-" + q(d.getHours()) + q(d.getMinutes());
+}
+function safeBase(t){
+  return String(t || "taguri").replace(/[\\/:*?"<>|]/g, "_").slice(0, 48).trim() || "taguri";
+}
+function exportJson(){
+  const all = EXP.scope === "all";
+  const sheets = (all ? book.sheets : [doc]).map(sh=>({ id:sh.id, title:sh.title, root:sh.root }));
+  const text = JSON.stringify({
+    app:"taguri", version:2, exportedAt:new Date().toISOString(), sheets
+  }, null, 2);
+  const name = (all ? "taguri-" + book.sheets.length + "sheets" : safeBase(doc.title)) + "-" + stamp() + ".json";
+  saveFile(name, text, "application/json", "データが大きすぎます");
+}
+
+function extractSheets(data){
+  const out = [];
+  const push = x =>{ const n = normalizeSheet(x); if(n) out.push(n); };
+  if(data && Array.isArray(data.sheets)) data.sheets.forEach(push);
+  else if(Array.isArray(data)) data.forEach(push);
+  else if(data && data.root) push({ title:data.title, root:data.root });
+  return out.slice(0, MAX_SHEETS);
+}
+function importFile(file){
+  if(!file) return;
+  if(file.size > 8 * 1024 * 1024) return toast("ファイルが大きすぎます（8MB まで）");
+  const fr = new FileReader();
+  fr.onerror = ()=> toast("ファイルを読み込めませんでした");
+  fr.onload = ()=>{
+    let data;
+    try{ data = JSON.parse(String(fr.result)); }
+    catch(err){ return toast("JSON として読み取れませんでした"); }
+    const sheets = extractSheets(data);
+    if(!sheets.length) return toast("マインドマップのデータが見つかりませんでした");
+    const room = MAX_SHEETS - book.sheets.length;
+    if(room <= 0) return toast("シートがいっぱいです");
+    const add = sheets.slice(0, room);
+    if(editing) stopEdit(false);
+    doc.view = {x:view.x, y:view.y, s:view.s};
+    add.forEach(sh=>{ sh.id = uid(); sh.title = uniqueTitle(sh.title); book.sheets.push(sh); });
+    loadSheet(add[0]);
+    save();
+    closeExport();
+    toast(add.length + " 件のシートを読み込みました");
+  };
+  fr.readAsText(file);
+}
 
 $("epCopy").onclick = async ()=>{
   if(!EXP.blob) return;
@@ -1411,23 +1760,26 @@ $("bTheme").onclick = ()=>{ themeIx = (themeIx+1)%3; applyTheme(); };
 window.addEventListener("resize", ()=>{ layout(); repositionOnly(); });
 
 /* ══════════ boot ══════════ */
-doc = load();
+book = load();
+doc = book.sheets.find(sh=>sh.id === book.activeId) || book.sheets[0];
 try{
   const th = localStorage.getItem("taguri.theme") || localStorage.getItem("kozue.theme"); if(th) themeIx = (+th)||0;
   if((localStorage.getItem("taguri.help") || localStorage.getItem("kozue.help")) === "1"){ hh.classList.add("min"); $("hCaret").textContent = "+"; }
 }catch(e){}
 applyTheme();
-$("title").textContent = doc.title;
-document.title = doc.title + " · Taguri";
+syncTitleUI();
+renderTabs();
 stage.tabIndex = -1;
 reindex();
 syncHistoryBtns();
 
-if(document.fonts && document.fonts.ready){
-  document.fonts.ready.then(()=>{ render(); fit(); });
+function boot(){
+  render();
+  if(doc.view){ view = {x:doc.view.x, y:doc.view.y, s:doc.view.s}; applyView(); }
+  else fit();
 }
-render();
-fit();
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(boot);
+boot();
 
 })();
 </script>
