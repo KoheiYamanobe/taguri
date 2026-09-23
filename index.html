@@ -71,6 +71,14 @@
 }
 
 *{box-sizing:border-box;}
+/* 背景をドラッグして移動するとき、UI の文字が選択されてしまうのを防ぐ。
+   編集できる場所（マップ名・シート名の変更中）だけは選択できるように戻す。 */
+header, #tabs, #help, #exp, .dock, #toast{
+  -webkit-user-select:none; -ms-user-select:none; user-select:none;
+}
+#title, #exp input, .tab .tname[contenteditable]{
+  -webkit-user-select:text; -ms-user-select:text; user-select:text;
+}
 html,body{height:100%;}
 body{
   margin:0;
@@ -780,7 +788,7 @@ function renameSheet(sh, name){
   save();
 }
 
-let renaming = null;
+let renaming = null, renamingFinish = null;
 function startTabRename(tabEl){
   const sh = book.sheets.find(x=>x.id === tabEl.dataset.id);
   if(!sh || renaming) return;
@@ -792,7 +800,7 @@ function startTabRename(tabEl){
   const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(r);
   const finish = (keep)=>{
     if(!renaming) return;
-    const target = renaming; renaming = null;
+    const target = renaming; renaming = null; renamingFinish = null;
     name.removeEventListener("blur", onBlur);
     name.removeEventListener("keydown", onKey);
     name.contentEditable = "false";
@@ -800,6 +808,7 @@ function startTabRename(tabEl){
     renderTabs();
   };
   const onBlur = ()=> finish(true);
+  renamingFinish = ()=> finish(true);
   const onKey = ev=>{
     ev.stopPropagation();
     if(ev.key === "Enter"){ ev.preventDefault(); finish(true); }
@@ -1146,6 +1155,7 @@ stage.addEventListener("pointerdown", e=>{
     if(editing && editing !== id) stopEdit(false);
     if(sel !== id){ sel = id; render(); }
     if(id !== "root"){
+      e.preventDefault();
       drag = {id, sx:e.clientX, sy:e.clientY, moved:false, target:null, mode:null};
       stage.setPointerCapture(e.pointerId);
     }
@@ -1154,6 +1164,11 @@ stage.addEventListener("pointerdown", e=>{
 
   if(!nodeEl || space){
     if(editing) stopEdit(false);
+    if(renamingFinish) renamingFinish();
+    /* ネイティブの文字選択が始まらないようにする（キーガイド等が選択されるのを防ぐ） */
+    e.preventDefault();
+    const s = window.getSelection();
+    if(s && !s.isCollapsed) s.removeAllRanges();
     pan = {x:e.clientX, y:e.clientY, vx:view.x, vy:view.y};
     stage.classList.add("panning");
     stage.setPointerCapture(e.pointerId);

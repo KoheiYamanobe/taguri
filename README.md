@@ -63,7 +63,7 @@ https://<あなたのユーザー名>.github.io/taguri/
 キャッシュが効いて古い画面が出る場合は、`sw.js` の先頭にある
 
 ```js
-const CACHE = "taguri-v3";
+const CACHE = "taguri-v4";
 ```
 
 の数字を 1 つ上げて一緒に上げ直してください。
